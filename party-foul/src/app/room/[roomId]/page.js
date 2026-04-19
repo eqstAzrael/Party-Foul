@@ -1,31 +1,44 @@
-'use client'
-
-import { serverTimestamp, setDoc } from "firebase/firestore";
-import { useParams } from "next/navigation";
+'use client';
+import { useState, useEffect } from 'react';
+import { useParams } from 'next/navigation';
+import { db, auth } from '../../firebase/firebase';
+import { doc, onSnapshot } from 'firebase/firestore';
 
 export default function RoomPage() {
+  const { roomId } = useParams();
+  const [players, setPlayers] = useState([]);
 
-    const params = useParams();
+  useEffect(() => {
+    return onSnapshot(doc(db, "rooms", roomId), (s) => {
+      if (s.exists()) setPlayers(s.data().players || []);
+    });
+  }, [roomId]);
 
-    const createGame = async () => {
-        const roomCode = Math.random().toString(36).substring(2, 6).toUpperCase();
+  const me = players.find(p => p.id === auth.currentUser?.uid);
 
-        try {
-            await setDoc(doc(db, "rooms", roomCode), {
-                status: "LOBBY",
-                createdAt: serverTimestamp(),
-            });
+  return (
+    <div className="h-screen flex flex-col items-center justify-center bg-gray-900 text-white">
+      <h1 className="text-4xl font-mono mb-10">{roomId}</h1>
+      <div className="bg-white/10 p-6 rounded-xl w-64">
+        {players.map(p => (
+          <div key={p.id} className="py-2 border-b border-white/10 last:border-0">
+            {p.name} {p.isHost && "👑"}
+          </div>
+        ))}
+      </div>
 
-            router.push(`/room/${roomCode}`);
-        }   catch(e) {
-            console.error("Ошибка при создании комнаты: ", e);
-        }
-    };  
+    {me?.isHost && (
+        <button 
+          
+          className="bg-green-600 hover:bg-green-700 px-10 py-3 rounded-full font-bold transition-transform active:scale-95"
+        >
+          START GAME
+        </button>
+      )}
 
-    return(
-        <div className="h-screen w-full flex items-center justify-center flex-col">
-            <h1> Room Code </h1>
-            <p> {params.roomId} </p>
-        </div>
-    );
+      {!me?.isHost && (
+        <p className="opacity-50 italic">Ожидание запуска хостом...</p>
+      )}
+    </div>
+  );
 }
