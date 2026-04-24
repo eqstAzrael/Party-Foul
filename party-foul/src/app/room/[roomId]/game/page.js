@@ -9,7 +9,7 @@ import Map from '../../../components/Map';
 export default function GamePage() {
   const { roomId } = useParams();
   const [roomData, setRoomData] = useState(null);
-ё
+
   useEffect(() => {
     const roomRef = doc(db, "rooms", roomId);
     const unsub = onSnapshot(roomRef, (s) => {
@@ -20,21 +20,35 @@ export default function GamePage() {
     return () => unsub();
   }, [roomId]);
 
-  if (!roomData) return <div className="h-screen bg-black flex items-center justify-center text-white">Загрузка...</div>;
+  const isHost = roomData?.players?.find(p => p.id === auth.currentUser?.uid)?.isHost;
 
-  
-  const isHost = roomData.players?.find(p => p.id === auth.currentUser?.uid)?.isHost;
-
-  
   const changePhase = async (newPhase) => {
     await updateDoc(doc(db, "rooms", roomId), { phase: newPhase });
   };
 
-  
+  useEffect(() => {
+    if (!isHost || !roomData) return;
+
+    const interval = setInterval(() => {
+      const phases = ["QUIZ", "RESULTS", "MAP"];
+      const currentIndex = phases.indexOf(roomData.phase);
+      const nextIndex = (currentIndex + 1) % phases.length;
+      const nextPhase = phases[nextIndex];
+
+      changePhase(nextPhase);
+    }, 150000);
+    
+    return () => clearInterval(interval);
+  }, [isHost, roomData?.phase]);
+
+  if (!roomData) return <div className="h-screen bg-black flex items-center justify-center text-white">Загрузка...</div>;
+
   const renderGameContent = () => {
     switch (roomData.phase) {
       case "QUIZ":
         return <Quiz />;
+      case "RESULTS":
+        return <div className="text-center text-2xl font-bold">Смотрим результаты...</div>;
       case "MAP":
         return <Map />;
       default:
@@ -52,13 +66,13 @@ export default function GamePage() {
   };
 
   return (
-    <main className="h-screen bg-gray-950 text-white flex flex-col items-center justify-center p-8 relative">
+    <main className="h-screen w-full bg-gray-950 text-white flex flex-col items-center justify-center">
       {renderGameContent()}
 
-      {/* Панель отладки для хоста */}
       {isHost && (
         <div className="absolute bottom-10 flex gap-4 bg-white/5 p-2 rounded border border-white/10">
           <button onClick={() => changePhase("QUIZ")} className="text-xs px-2 py-1">QUIZ</button>
+          <button onClick={() => changePhase("RESULTS")} className="text-xs px-2 py-1">RESULTS</button>
           <button onClick={() => changePhase("MAP")} className="text-xs px-2 py-1">MAP</button>
         </div>
       )}
