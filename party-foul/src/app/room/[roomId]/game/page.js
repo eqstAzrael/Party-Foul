@@ -7,58 +7,54 @@ import Quiz from '../../../components/Quiz';
 import Map from '../../../components/Map';
 
 export default function GamePage() {
-  const { roomId } = useParams();
-  const [roomData, setRoomData] = useState(null);
+  const { roomId } = useParams(); //
+  const [roomData, setRoomData] = useState(null); //
 
   useEffect(() => {
-    const roomRef = doc(db, "rooms", roomId);
-    const unsub = onSnapshot(roomRef, (s) => {
-      if (s.exists()) {
-        setRoomData(s.data());
-      }
+    const unsub = onSnapshot(doc(db, "rooms", roomId), (s) => {
+      if (s.exists()) setRoomData(s.data());
     });
     return () => unsub();
   }, [roomId]);
 
-  const isHost = roomData?.players?.find(p => p.id === auth.currentUser?.uid)?.isHost;
+  const isHost = roomData?.players?.find(p => p.id === auth.currentUser?.uid)?.isHost; //
 
   const changePhase = async (newPhase) => {
     await updateDoc(doc(db, "rooms", roomId), { phase: newPhase });
   };
-
-  useEffect(() => {
-    if (!isHost || !roomData) return;
-
-    const interval = setInterval(() => {
-      const phases = ["QUIZ", "RESULTS", "MAP"];
-      const currentIndex = phases.indexOf(roomData.phase);
-      const nextIndex = (currentIndex + 1) % phases.length;
-      const nextPhase = phases[nextIndex];
-
-      changePhase(nextPhase);
-    }, 150000);
-    
-    return () => clearInterval(interval);
-  }, [isHost, roomData?.phase]);
 
   if (!roomData) return <div className="h-screen bg-black flex items-center justify-center text-white">Загрузка...</div>;
 
   const renderGameContent = () => {
     switch (roomData.phase) {
       case "QUIZ":
-        return <Quiz />;
+        return <Quiz roomId={roomId} onFinish={() => isHost && changePhase("RESULTS")} />;
+      
       case "RESULTS":
-        return <div className="text-center text-2xl font-bold">Смотрим результаты...</div>;
+        return (
+          <div className="text-center">
+            <h2 className="text-2xl font-bold mb-6">Раунд завершен!</h2>
+            {isHost && (
+              <button onClick={() => changePhase("MAP")} className="bg-green-600 px-8 py-3 rounded-xl font-bold">
+                Продолжить путь (Карта)
+              </button>
+            )}
+          </div>
+        );
+
       case "MAP":
-        return <Map />;
+        return <Map onFinish={() => isHost && changePhase("QUIZ")} />;
+
       default:
         return (
           <div className="text-center">
-            <h1 className="text-2xl mb-4">Ожидание начала...</h1>
-            {isHost && (
-              <button onClick={() => changePhase("QUIZ")} className="bg-blue-600 px-6 py-2 rounded">
-                Начать раунд
+            <h1 className="text-3xl font-bold mb-6">Лобби</h1>
+            {isHost ? (
+              <button onClick={() => changePhase("QUIZ")} className="bg-blue-600 px-8 py-3 rounded-xl font-bold">
+                Начать игру
               </button>
+            ) : (
+              <p className="text-gray-400">Ожидаем хоста...</p>
             )}
           </div>
         );
@@ -66,16 +62,8 @@ export default function GamePage() {
   };
 
   return (
-    <main className="h-screen w-full bg-gray-950 text-white flex flex-col items-center justify-center">
+    <main className="h-screen w-full bg-gray-950 text-white flex items-center justify-center">
       {renderGameContent()}
-
-      {isHost && (
-        <div className="absolute bottom-10 flex gap-4 bg-white/5 p-2 rounded border border-white/10">
-          <button onClick={() => changePhase("QUIZ")} className="text-xs px-2 py-1">QUIZ</button>
-          <button onClick={() => changePhase("RESULTS")} className="text-xs px-2 py-1">RESULTS</button>
-          <button onClick={() => changePhase("MAP")} className="text-xs px-2 py-1">MAP</button>
-        </div>
-      )}
     </main>
   );
 }

@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react';
 import questions from '../data/questions.json'; 
+import { auth, db } from '../firebase/firebase';
+import { doc, updateDoc, increment } from 'firebase/firestore';
 
-
-export default function Quiz() {
+export default function Quiz({ roomId, onFinish }) {
     const [score, setScore] = useState(0);
     const [isLocked, setIsLocked] = useState(false);
     const [step, setStep] = useState(0);
@@ -11,6 +12,23 @@ export default function Quiz() {
         return [...questions].sort(() => Math.random() - 0.5).slice(0, 5);
     }, []);
     const currentQuestion = quizList[step];
+
+    const saveFinalResult = async (finalScore) => {
+        const user = auth.currentUser;
+        if (!user || !roomId) return;
+
+        const roomRef = doc(db, "rooms", roomId);
+
+        try {
+            await updateDoc(roomRef, {
+            [`scores.${user.uid}`]: increment(finalScore) 
+            });
+
+            console.log("Счет успешно обновлен и суммирован!");
+        } catch (e) {
+            console.error("Ошибка при обновлении счета:", e);
+        }
+    };
 
     const checkAnswer = async (index) => {
         console.log(step);
@@ -25,6 +43,8 @@ export default function Quiz() {
                 setStep(prev => prev + 1); 
                 setIsLocked(false);
             } else {
+                saveFinalResult(score);
+                if (onFinish) onFinish(); 
                 return alert("Ожидание других игроков");
             }
         }, 1200);  
